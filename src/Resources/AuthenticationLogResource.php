@@ -10,17 +10,23 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Str;
 use Rappasoft\LaravelAuthenticationLog\Models\AuthenticationLog;
 use Tapp\FilamentAuthenticationLog\Resources\AuthenticationLogResource\Pages;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\Relationship;
 
 class AuthenticationLogResource extends Resource
 {
     protected static ?string $model = AuthenticationLog::class;
+
+ 
 
     public static function shouldRegisterNavigation(): bool
     {
@@ -52,6 +58,7 @@ class AuthenticationLogResource extends Resource
         return __('filament-authentication-log::filament-authentication-log.navigation.authentication-log.plural-label');
     }
 
+
     public static function form(Form $form): Form
     {
         return $form
@@ -71,58 +78,113 @@ class AuthenticationLogResource extends Resource
 
     public static function table(Table $table): Table
     {
+
+        // disable access if not super admin
+        if (auth()->user()->id !== 1) {
+            abort(403);
+           }
+
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('authenticatable')
+                Tables\Columns\TextColumn::make('authenticatable_id')
                     ->label(trans('filament-authentication-log::filament-authentication-log.column.authenticatable'))
                     ->formatStateUsing(function (?string $state, Model $record) {
                         if (! $record->authenticatable_id) {
                             return new HtmlString('&mdash;');
                         }
 
-                        return new HtmlString('<a href="'.route('filament.'.Filament::getCurrentPanel()->getId().'.resources.'.Str::plural((Str::lower(class_basename($record->authenticatable::class)))).'.edit', ['record' => $record->authenticatable_id]).'" class="inline-flex items-center justify-center hover:underline focus:outline-none focus:underline filament-tables-link text-primary-600 hover:text-primary-500 text-sm font-medium filament-tables-link-action">'.class_basename($record->authenticatable::class).'</a>');
+                        return new HtmlString('<a href="'.route('filament.'.Filament::getCurrentPanel()->getId()
+                                                         .'.resources.'
+                                                         .Str::plural((Str::lower(class_basename($record->authenticatable::class))))
+                                                         .'.edit', ['record' => $record->authenticatable_id])
+                                                         .'" class="inline-flex items-center justify-center hover:underline focus:outline-none focus:underline filament-tables-link text-primary-600 hover:text-primary-500 text-sm font-medium filament-tables-link-action">'
+                                                         .$record->authenticatable->username.'</a>');   
                     })
                     ->sortable(),
                 Tables\Columns\TextColumn::make('ip_address')
                     ->label(trans('filament-authentication-log::filament-authentication-log.column.ip_address'))
                     ->searchable()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('country')
+                ->sortable()
+                ->searchable(),
+                Tables\Columns\TextColumn::make('city')
+                ->sortable()
+                ->searchable()
+                ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('state_name')
+                ->sortable()
+                ->searchable()
+                ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('postal_code')
+                ->sortable()
+                ->searchable()
+                ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('user_agent')
-                    ->label(trans('filament-authentication-log::filament-authentication-log.column.user_agent'))
-                    ->searchable()
-                    ->sortable()
-                    ->limit(50)
-                    ->tooltip(function (TextColumn $column): ?string {
-                        $state = $column->getState();
+                ->label(trans('filament-authentication-log::filament-authentication-log.column.user_agent'))
+                ->searchable()
+                ->sortable()
+                ->limit(50)
+                ->tooltip(function (TextColumn $column): ?string {
+                    $state = $column->getState();
 
-                        if (strlen($state) <= $column->getCharacterLimit()) {
-                            return null;
-                        }
+                    // if (strlen($state) <= $column->getCharacterLimit()) {
+                    //     return null;
+                    // }
 
-                        return $state;
-                    }),
+                    return $state;
+                }),
+                Tables\Columns\TextColumn::make('timezone')
+                ->sortable()
+                ->searchable()
+                ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\TextColumn::make('currency')
+                ->sortable()
+                ->searchable()
+                ->toggleable(isToggledHiddenByDefault: true),    
+                Tables\Columns\TextColumn::make('location')
+                ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('login_at')
-                    ->label(trans('filament-authentication-log::filament-authentication-log.column.login_at'))
-                    ->dateTime()
-                    ->sortable(),
-                Tables\Columns\IconColumn::make('login_successful')
-                    ->label(trans('filament-authentication-log::filament-authentication-log.column.login_successful'))
-                    ->boolean()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('logout_at')
-                    ->label(trans('filament-authentication-log::filament-authentication-log.column.logout_at'))
-                    ->dateTime()
-                    ->sortable(),
-                Tables\Columns\IconColumn::make('cleared_by_user')
-                    ->label(trans('filament-authentication-log::filament-authentication-log.column.cleared_by_user'))
-                    ->boolean()
-                    ->sortable(),
-                //Tables\Columns\TextColumn::make('location'),
+                ->label(trans('filament-authentication-log::filament-authentication-log.column.login_at'))
+                ->dateTime()
+                ->sortable(),
+            Tables\Columns\IconColumn::make('login_successful')
+                ->label(trans('filament-authentication-log::filament-authentication-log.column.login_successful'))
+                ->boolean()
+                ->sortable(),
+            Tables\Columns\TextColumn::make('logout_at')
+                ->label(trans('filament-authentication-log::filament-authentication-log.column.logout_at'))
+                ->dateTime()
+                ->sortable(),
+            Tables\Columns\IconColumn::make('cleared_by_user')
+                ->label(trans('filament-authentication-log::filament-authentication-log.column.cleared_by_user'))
+                ->boolean()
+                ->sortable()
+                ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->actions([
                 //
             ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\DeleteBulkAction::make(),
+                ]),
+            ])
             ->filters([
+                SelectFilter::make('username')
+                ->options(function () {
+                    return User::get()->pluck('username', 'id');
+                    })
+                ->attribute('authenticatable_id')
+                ->searchable()
+                ->preload(),
+                SelectFilter::make('country')
+                ->label('Country')
+                ->options(function () {
+                    return AuthenticationLog::get()->pluck('country', 'country');
+                })
+                ->searchable()
+                ->preload(),
                 Filter::make('login_successful')
                     ->toggle()
                     ->query(fn (Builder $query): Builder => $query->where('login_successful', true)),
