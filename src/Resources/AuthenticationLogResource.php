@@ -184,7 +184,8 @@ class AuthenticationLogResource extends Resource
                     return AuthenticationLog::get()->pluck('country', 'country');
                 })
                 ->searchable()
-                ->preload(),
+                ->preload()
+                ->visible(fn (AuthenticationLog $record): bool => $record->country != null),
                 Filter::make('login_successful')
                     ->toggle()
                     ->query(fn (Builder $query): Builder => $query->where('login_successful', true)),
